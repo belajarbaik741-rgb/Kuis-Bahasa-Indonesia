@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Kuis Online Bahasa Indonesia XII</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FIREBASE SDK (COMPAT VERSION) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-100 font-sans min-h-screen">
+
+  <!-- NAVIGATION BAR -->
+  <nav class="bg-indigo-700 text-white p-4 shadow-md flex justify-between items-center">
+    <h1 class="font-bold text-xl">QuizApp Bahasa Indonesia XII</h1>
+    <button onclick="openTeacherLogin()" class="bg-indigo-900 hover:bg-indigo-800 text-xs px-3 py-2 rounded-lg transition">
+      Akses Guru 🔒
+    </button>
+  </nav>
+
+  <div class="container mx-auto p-4 max-w-4xl">
+
+    <!-- VIEW 1: FORM IDENTITAS SISWA -->
+    <div id="student-login-view" class="bg-white p-6 rounded-xl shadow-md max-w-md mx-auto mt-10">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">Masuk Kuis Siswa</h2>
+      <form onsubmit="startQuiz(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nama Lengkap</label>
+          <input type="text" id="student-name" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Kelas</label>
+          <input type="text" id="student-class" placeholder="Contoh: XII IPA 1" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Kode Kuis</label>
+          <input type="text" id="quiz-code" value="INDO12" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none uppercase">
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg transition">
+          Mulai Ujian
+        </button>
+      </form>
+    </div>
+
+    <!-- VIEW 2: DASHBOARD PENGERJAAN KUIS SISWA -->
+    <div id="quiz-view" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-md flex justify-between items-center sticky top-2 z-10">
+        <div>
+          <span id="display-student-info" class="font-semibold text-gray-700"></span>
+          <p class="text-xs text-gray-500">Mata Pelajaran: Bahasa Indonesia Kelas XII</p>
+        </div>
+        <div class="bg-red-100 text-red-700 px-4 py-2 rounded-lg font-mono font-bold text-lg" id="timer-display">
+          35:00
+        </div>
+      </div>
+
+      <div class="bg-white p-6 rounded-xl shadow-md">
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+          <span class="font-bold text-indigo-600" id="question-number">Soal 1 dari 30</span>
+          <button onclick="toggleDoubt()" id="btn-doubt" class="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-semibold">
+            Ragu-ragu
+          </button>
+        </div>
+        
+        <p id="question-text" class="text-gray-800 text-base mb-6 leading-relaxed font-medium min-h-[50px]"></p>
+
+        <div id="options-container" class="space-y-3"></div>
+
+        <div class="flex justify-between items-center mt-8 border-t pt-4">
+          <button onclick="prevQuestion()" id="btn-prev" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-medium">
+            Sebelumnya
+          </button>
+          <button onclick="nextQuestion()" id="btn-next" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium">
+            Selanjutnya
+          </button>
+          <button onclick="confirmSubmit()" id="btn-submit" class="hidden bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold">
+            Selesai Ujian
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: HASIL KUIS SISWA -->
+    <div id="result-view" class="hidden bg-white p-8 rounded-xl shadow-md text-center max-w-md mx-auto mt-10">
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Ujian Selesai!</h2>
+      <p class="text-gray-600 mb-6">Terima kasih telah menyelesaikan kuis ini.</p>
+      <div class="bg-indigo-50 p-6 rounded-xl mb-6">
+        <span class="text-sm text-indigo-600 font-semibold uppercase">Nilai Akhir Anda</span>
+        <div id="final-score" class="text-5xl font-black text-indigo-700 my-2">0</div>
+        <p id="score-detail" class="text-xs text-gray-500"></p>
+      </div>
+    </div>
+
+    <!-- VIEW 4: DASHBOARD GURU -->
+    <div id="teacher-view" class="hidden space-y-6">
+      <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-md">
+        <div>
+          <h2 class="text-xl font-bold text-gray-800">Dashboard Rekapitulasi Guru</h2>
+          <p class="text-xs text-gray-500">Kode Kuis Aktif: <span class="font-bold text-indigo-600">INDO12</span></p>
+        </div>
+        <div class="space-x-2">
+          <button onclick="exportToCSV()" class="bg-green-600 hover:bg-green-700 text-white text-xs px-3 py-2 rounded-lg font-medium">
+            Export CSV
+          </button>
+          <button onclick="logoutTeacher()" class="bg-gray-500 hover:bg-gray-600 text-white text-xs px-3 py-2 rounded-lg font-medium">
+            Keluar
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-600">
+          <thead class="bg-indigo-50 text-indigo-900 uppercase text-xs">
+            <tr>
+              <th class="p-3">Nama Siswa</th>
+              <th class="p-3">Kelas</th>
+              <th class="p-3">Waktu Selesai</th>
+              <th class="p-3 text-center">Benar / Salah</th>
+              <th class="p-3 text-center">Nilai Akhir</th>
+            </tr>
+          </thead>
+          <tbody id="teacher-table-body" class="divide-y">
+            <!-- Row data diisi via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL LOGIN GURU -->
+  <div id="teacher-modal" class="hidden fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
+    <div class="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">Autentikasi Guru</h3>
+      <input type="password" id="teacher-password" placeholder="Masukkan password" class="w-full p-2 border rounded-lg mb-4 outline-none focus:ring-2 focus:ring-indigo-500">
+      <div class="flex justify-end space-x-2">
+        <button onclick="closeTeacherModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
+        <button onclick="verifyTeacherPassword()" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Masuk</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 1. KONFIGURASI FIREBASE (Ganti dengan config milik Anda di console.firebase.google.com jika ingin database milik sendiri)
+    const firebaseConfig = {
+      databaseURL: "https://quizapp-bahasa-indonesia-default-rtdb.firebaseio.com"
+    };
+    
+    // Inisialisasi Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+
+    // 2. DATA BANK SOAL (30 SOAL)
+    const quizQuestions = [
+      { id: 1, text: "Ki Hajar Dewantara mendirikan Taman Siswa pada tahun 1922 untuk memperjuangkan hak pendidikan bangsa.", options: ["A. Tokoh pendidikan nasional", "B. Pendiri organisasi politik", "C. Sastrawan Angkatan 45", "D. Pahlawan militer Indonesia", "E. Tokoh keagamaan"], answer: "A" },
+      { id: 2, text: "Teknik membaca cepat untuk menemukan ide pokok secara keseluruhan tanpa membaca kata demi kata disebut...", options: ["A. Scanning", "B. Skimming", "C. Membaca kritis", "D. Membaca intensif", "E. Membaca analitis"], answer: "B" },
+      { id: 3, text: "Membaca memindai (scanning) sangat efektif digunakan saat Anda bertujuan untuk...", options: ["A. Menikmati alur novel", "B. Memahami isi bab buku", "C. Mencari nomor telepon di direktori", "D. Menganalisis gaya bahasa puisi", "E. Menilai kualitas karya sastra"], answer: "C" },
+      { id: 4, text: "Buku referensi yang memuat informasi komprehensif tentang berbagai cabang ilmu pengetahuan disebut...", options: ["A. Kamus", "B. Tesaurus", "C. Ensiklopedia", "D. Babad", "E. Biografi"], answer: "C" },
+      { id: 5, text: "Istilah khusus 'fotosintesis' dalam bidang biologi merujuk pada proses...", options: ["A. Pembelahan sel tumbuhan", "B. Pembuatan makanan oleh tumbuhan", "C. Penyerapan air oleh akar", "D. Penguapan air pada daun", "E. Pernapasan pada tumbuhan"], answer: "B" },
+      { id: 6, text: "Manakah dari kalimat berikut yang berisi informasi valid berupa fakta?", options: ["A. Indonesia adalah negara paling indah di dunia.", "B. Gunung Semeru terletak di Jawa Timur.", "C. Makanan tradisional Indonesia sangat lezat.", "D. Cuaca hari ini terasa sangat menyenangkan.", "E. Pendidikan Indonesia sudah sangat sempurna."], answer: "B" },
+      { id: 7, text: "Penulisan tata aksara dan ejaan kalimat yang tepat sesuai EYD adalah...", options: ["A. Ibu membeli jeruk bali di pasar.", "B. Ibu membeli jeruk Bali di pasar.", "C. ibu membeli Jeruk Bali di pasar.", "D. Ibu membeli Jeruk Bali di-pasar.", "E. Ibu membeli jeruk bali di-pasar."], answer: "A" },
+      { id: 8, text: "B.J. Habibie dikenal dunia karena kontribusi besarnya dalam bidang teknologi penerbangan.", options: ["A. Penemu teori Crack pada pesawat", "B. Sastrawan terkemuka Indonesia", "C. Pendiri surat kabar nasional", "D. Tokoh diplomasi luar negeri", "E. Perintis pendidikan kejuruan"], answer: "A" },
+      { id: 9, text: "Saat membaca sekilas (skimming) sebuah artikel berita, fokus utama membaca terletak pada...", options: ["A. Setiap kata di paragraf akhir", "B. Judul dan kalimat utama paragraf", "C. Angka dan data statistik saja", "D. Catatan kaki tulisan", "E. Ejaan yang salah"], answer: "B" },
+      { id: 10, text: "Mencari kata tertentu dalam kamus besar bahasa Indonesia menerapkan teknik...", options: ["A. Skimming", "B. Scanning", "C. Membaca mawas", "D. Membaca pemahaman", "E. Membaca wacana"], answer: "B" },
+      { id: 11, text: "Artikel dalam ensiklopedia umumnya disusun berdasarkan urutan...", options: ["A. Tanggal terbit", "B. Abjad atau alfabetis", "C. Panjang tulisan", "D. Nama penulis", "E. Tingkat kesulitan"], answer: "B" },
+      { id: 12, text: "Kata khusus 'inflasi' dalam bidang ekonomi memiliki arti...", options: ["A. Kenaikan harga barang secara umum", "B. Penurunan nilai tukar mata uang", "C. Tabungan masyarakat di bank", "D. Pembayaran pajak secara rutin", "E. Peminjaman modal usaha"], answer: "A" },
+      { id: 13, text: "Ciri utama dari sebuah informasi yang valid adalah...", options: ["A. Berdasarkan pendapat pribadi", "B. Dapat dibuktikan kebenarannya", "C. Menggunakan bahasa puitis", "D. Ditulis oleh penulis terkenal", "E. Memiliki kalimat yang panjang"], answer: "B" },
+      { id: 14, text: "Penulisan gelar akademik dan nama yang benar sesuai kaidah ejaan adalah...", options: ["A. Dr. Ahmad Wijaya, M.Pd.", "B. Dr, Ahmad Wijaya M.Pd", "C. Dr. Ahmad Wijaya M.Pd.", "D. DR. Ahmad Wijaya, MPd.", "E. Dr. Ahmad Wijaya. M,Pd."], answer: "A" },
+      { id: 15, text: "R.A. Kartini memperjuangkan kesetaraan hak wanita Indonesia melalui kumpulan surat...", options: ["A. Laut Tak Bertepi", "B. Habis Gelap Terbitlah Terang", "C. Layar Terkembang", "D. Bumi Manusia", "E. Indonesia Menggugat"], answer: "B" },
+      { id: 16, text: "Tujuan utama pengerjaan membaca sekilas sebelum membaca mendalam adalah...", options: ["A. Mengingat seluruh kata", "B. Mendapatkan gambaran umum isi teks", "C. Menemukan kesalahan cetak", "D. Memuat ulang tulisan", "E. Menghafal urutan halaman"], answer: "B" },
+      { id: 17, text: "Ketika mencari jadwal keberangkatan kereta pada papan pengumuman, teknik yang digunakan adalah...", options: ["A. Skimming", "B. Scanning", "C. Membaca naratif", "D. Membaca sekilas", "E. Membaca evaluatif"], answer: "B" },
+      { id: 18, text: "Ensiklopedia berbeda dari kamus umum karena ensiklopedia menyajikan...", options: ["A. Hanya definisi kata", "B. Uraian penjelasan konsep secara mendalam", "C. Sinonim dan antonim kata", "D. Cara pengucapan kata", "E. Terjemahan bahasa asing"], answer: "B" },
+      { id: 19, text: "Istilah teknis 'reboisasi' memiliki makna...", options: ["A. Penebangan hutan secara liar", "B. Penghijauan kembali hutan yang gundul", "C. Pembakaran lahan pertanian", "D. Pengolahan limbah pabrik", "E. Pembersihan saluran air"], answer: "B" },
+      { id: 20, text: "Kalimat yang memuat informasi berupa opini adalah...", options: ["A. Air mendidih pada suhu 100 derajat Celsius.", "B. Bensin termasuk bahan bakar minyak.", "C. Ruang kelas ini tampaknya sangat nyaman.", "D. Candi Borobudur terletak di Magelang.", "E. DKI Jakarta adalah ibu kota Indonesia."], answer: "C" },
+      { id: 21, text: "Penulisan kata depan 'di' yang tepat terdapat pada kalimat...", options: ["A. Budi membaca buku diperpustakaan.", "B. Budi membaca buku di perpustakaan.", "C. Budi membaca buku dipasar.", "D. Budi di hukum karena terlambat.", "E. Budi membaca buku di-rumah."], answer: "B" },
+      { id: 22, text: "Pramoedya Ananta Toer merupakan tokoh sastra Indonesia yang terkenal dengan karya...", options: ["A. Tetralogi Buru", "B. Aku dan Karawang-Bekasi", "C. Robohnya Surau Kami", "D. Tenggelamnya Kapal van der Wijck", "E. Hujan Bulan Juni"], answer: "A" },
+      { id: 23, text: "Membaca tajuk rencana koran secara sekilas bertujuan untuk...", options: ["A. Menemukan kata sulit", "B. Mengetahui posisi/pandangan redaksi", "C. Menghitung jumlah paragraf", "D. Mencari iklan produk", "E. Mengoreksi ejaan penulis"], answer: "B" },
+      { id: 24, text: "Penggunaan teknik scanning paling tepat dilakukan pada kegiatan...", options: ["A. Membaca cerpen hiburan", "B. Menemukan kata di indeks buku", "C. Menulis esai ilmiah", "D. Menghafal naskah pidato", "E. Menelaah puisi lama"], answer: "B" },
+      { id: 25, text: "Informasi dalam ensiklopedia umumnya bersifat...", options: ["A. Fiktif dan imajinatif", "B. Objektif dan faktual", "C. Subjektif dan persuasif", "D. Rahasia dan tertutup", "E. Sementara dan berubah-ubah"], answer: "B" },
+      { id: 26, text: "Kata khusus 'hipotesis' dalam penelitian ilmiah berarti...", options: ["A. Hasil akhir penelitian", "B. Dugaan awal/jawaban sementara", "C. Kesimpulan eksperimen", "D. Metode pengumpulan data", "E. Analisis data statistik"], answer: "B" },
+      { id: 27, text: "Untuk memastikan kebervalidan suatu berita online, langkah terbaik adalah...", options: ["A. Membagikan langsung ke media sosial", "B. Memeriksa kredibilitas sumber berita", "C. Membaca judulnya saja", "D. Memercayai berita yang viral", "E. Menilai dari desain grafisnya"], answer: "B" },
+      { id: 28, text: "Manakah kalimat dengan penggunaan tanda baca koma (,) yang benar?", options: ["A. Saya membeli pensil, buku, dan penghapus.", "B. Saya membeli pensil, buku dan, penghapus.", "C. Saya membeli, pensil, buku, dan penghapus.", "D. Saya membeli pensil buku dan penghapus.", "E. Saya membeli pensil, buku dan penghapus,"], answer: "A" },
+      { id: 29, text: "Sultan Hasanuddin dijuluki 'Ayam Jantan dari Timur' karena...", options: ["A. Kedermawanannya pada rakyat", "B. Keberaniannya melawan VOC", "C. Keahliannya berdagang rempah", "D. Karya sastranya yang indah", "E. Kebijakannya di bidang pertanian"], answer: "B" },
+      { id: 30, text: "Penulisan huruf kapital yang benar terdapat pada kalimat...", options: ["A. Kami menyeberangi Selat Sunda.", "B. Kami menyeberangi selat Sunda.", "C. Kami menyeberangi selat sunda.", "D. Kami Menyeberangi Selat Sunda.", "E. Kami menyeberangi Selat sunda."], answer: "A" }
+    ];
+
+    // STATE APLIKASI
+    let currentQuestionIndex = 0;
+    let userAnswers = {};
+    let doubts = {};
+    let timerInterval = null;
+    let timeRemaining = 35 * 60; // 35 menit
+    let currentStudent = { name: "", studentClass: "", quizCode: "" };
+    let globalResultsList = [];
+
+    // --- LOGIKA SISWA ---
+    function startQuiz(e) {
+      e.preventDefault();
+      currentStudent.name = document.getElementById("student-name").value.trim();
+      currentStudent.studentClass = document.getElementById("student-class").value.trim();
+      currentStudent.quizCode = document.getElementById("quiz-code").value.trim().toUpperCase();
+
+      document.getElementById("student-login-view").classList.add("hidden");
+      document.getElementById("quiz-view").classList.remove("hidden");
+      document.getElementById("display-student-info").innerText = `${currentStudent.name} (${currentStudent.studentClass})`;
+
+      startTimer();
+      renderQuestion();
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        timeRemaining--;
+        let minutes = Math.floor(timeRemaining / 60);
+        let seconds = timeRemaining % 60;
+        document.getElementById("timer-display").innerText = 
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+        if (timeRemaining <= 0) {
+          clearInterval(timerInterval);
+          submitQuiz();
+        }
+      }, 1000);
+    }
+
+    function renderQuestion() {
+      const q = quizQuestions[currentQuestionIndex];
+      document.getElementById("question-number").innerText = `Soal ${currentQuestionIndex + 1} dari ${quizQuestions.length}`;
+      document.getElementById("question-text").innerText = q.text;
+
+      const container = document.getElementById("options-container");
+      container.innerHTML = "";
+
+      q.options.forEach((opt) => {
+        const optKey = opt.charAt(0);
+        const isSelected = userAnswers[currentQuestionIndex] === optKey;
+        
+        const btn = document.createElement("button");
+        btn.className = `w-full text-left p-3 rounded-lg border transition ${isSelected ? 'bg-indigo-100 border-indigo-600 font-semibold' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`;
+        btn.innerText = opt;
+        btn.onclick = () => selectAnswer(optKey);
+        container.appendChild(btn);
+      });
+
+      const doubtBtn = document.getElementById("btn-doubt");
+      if (doubts[currentQuestionIndex]) {
+        doubtBtn.className = "text-xs bg-yellow-500 text-white px-3 py-1 rounded-full font-semibold";
+      } else {
+        doubtBtn.className = "text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-semibold";
+      }
+
+      document.getElementById("btn-prev").style.visibility = currentQuestionIndex === 0 ? "hidden" : "visible";
+      if (currentQuestionIndex === quizQuestions.length - 1) {
+        document.getElementById("btn-next").classList.add("hidden");
+        document.getElementById("btn-submit").classList.remove("hidden");
+      } else {
+        document.getElementById("btn-next").classList.remove("hidden");
+        document.getElementById("btn-submit").classList.add("hidden");
+      }
+    }
+
+    function selectAnswer(key) {
+      userAnswers[currentQuestionIndex] = key;
+      renderQuestion();
+    }
+
+    function toggleDoubt() {
+      doubts[currentQuestionIndex] = !doubts[currentQuestionIndex];
+      renderQuestion();
+    }
+
+    function prevQuestion() {
+      if (currentQuestionIndex > 0) {
+        currentQuestionIndex--;
+        renderQuestion();
+      }
+    }
+
+    function nextQuestion() {
+      if (currentQuestionIndex < quizQuestions.length - 1) {
+        currentQuestionIndex++;
+        renderQuestion();
+      }
+    }
+
+    function confirmSubmit() {
+      if (confirm("Apakah Anda yakin ingin menyelesaikan ujian?")) {
+        clearInterval(timerInterval);
+        submitQuiz();
+      }
+    }
+
+    function submitQuiz() {
+      let correct = 0;
+      quizQuestions.forEach((q, idx) => {
+        if (userAnswers[idx] === q.answer) {
+          correct++;
+        }
+      });
+
+      let score = Math.round((correct / quizQuestions.length) * 100);
+      const now = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+      const resultData = {
+        name: currentStudent.name,
+        studentClass: currentStudent.studentClass,
+        time: now,
+        correct: correct,
+        wrong: quizQuestions.length - correct,
+        score: score,
+        timestamp: Date.now()
+      };
+
+      // KIRIM KE FIREBASE CLOUD REALTIME
+      db.ref("quiz_results/" + currentStudent.quizCode).push(resultData);
+
+      // TAMPILKAN KE SISWA
+      document.getElementById("quiz-view").classList.add("hidden");
+      document.getElementById("result-view").classList.remove("hidden");
+      document.getElementById("final-score").innerText = score;
+      document.getElementById("score-detail").innerText = `Jawaban Benar: ${correct} | Salah: ${quizQuestions.length - correct}`;
+    }
+
+    // --- LOGIKA GURU & AUTENTIKASI ---
+    function openTeacherLogin() {
+      document.getElementById("teacher-modal").classList.remove("hidden");
+    }
+
+    function closeTeacherModal() {
+      document.getElementById("teacher-modal").classList.add("hidden");
+    }
+
+    function verifyTeacherPassword() {
+      const pwd = document.getElementById("teacher-password").value;
+      if (pwd === "guru321") {
+        closeTeacherModal();
+        document.getElementById("student-login-view").classList.add("hidden");
+        document.getElementById("quiz-view").classList.add("hidden");
+        document.getElementById("result-view").classList.add("hidden");
+        document.getElementById("teacher-view").classList.remove("hidden");
+        
+        // LISTEN DATA REAL-TIME DARI FIREBASE
+        listenToResults();
+      } else {
+        alert("Password Salah! Akses ditolak.");
+      }
+    }
+
+    function logoutTeacher() {
+      document.getElementById("teacher-view").classList.add("hidden");
+      document.getElementById("student-login-view").classList.remove("hidden");
+      document.getElementById("teacher-password").value = "";
+    }
+
+    function listenToResults() {
+      const quizCode = "INDO12";
+      db.ref("quiz_results/" + quizCode).on("value", (snapshot) => {
+        const data = snapshot.val();
+        globalResultsList = [];
+        const tbody = document.getElementById("teacher-table-body");
+        tbody.innerHTML = "";
+
+        if (!data) {
+          tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-gray-400">Belum ada siswa yang menyelesaikan kuis.</td></tr>`;
+          return;
+        }
+
+        Object.keys(data).forEach(key => {
+          globalResultsList.push(data[key]);
+        });
+
+        // Urutkan berdasarkan waktu submit terbaru
+        globalResultsList.sort((a, b) => b.timestamp - a.timestamp);
+
+        globalResultsList.forEach(res => {
+          const tr = document.createElement("tr");
+          tr.className = "hover:bg-gray-50 border-b";
+          tr.innerHTML = `
+            <td class="p-3 font-semibold text-gray-800">${res.name}</td>
+            <td class="p-3">${res.studentClass}</td>
+            <td class="p-3 text-xs text-gray-500">${res.time}</td>
+            <td class="p-3 text-center"><span class="text-green-600 font-bold">${res.correct}</span> / <span class="text-red-500 font-bold">${res.wrong}</span></td>
+            <td class="p-3 text-center font-extrabold text-indigo-700">${res.score}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      });
+    }
+
+    function exportToCSV() {
+      if (globalResultsList.length === 0) {
+        alert("Tidak ada data untuk diekspor!");
+        return;
+      }
+      let csv = "Nama Siswa,Kelas,Waktu Selesai,Benar,Salah,Nilai\n";
+      globalResultsList.forEach(r => {
+        csv += `"${r.name}","${r.studentClass}","${r.time}",${r.correct},${r.wrong},${r.score}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', 'Rekap_Nilai_Bahasa_Indonesia.csv');
+      a.click();
+    }
+  </script>
+</body>
+</html>
